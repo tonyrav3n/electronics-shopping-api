@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, web};
+use axum::{Form, extract::State, http::StatusCode};
 use bigdecimal::BigDecimal;
 use sqlx::PgPool;
 use tracing::Instrument;
@@ -13,7 +13,10 @@ pub struct FormData {
     stock: i32,
 }
 
-pub async fn add_product(form: web::Form<FormData>, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn add_product(
+    State(pool): State<PgPool>,
+    Form(form): Form<FormData>,
+) -> StatusCode {
     let request_id = Uuid::new_v4();
     let request_span = tracing::info_span!(
         "Adding a new product",
@@ -37,7 +40,7 @@ pub async fn add_product(form: web::Form<FormData>, pool: web::Data<PgPool>) -> 
         form.price,
         form.stock
     )
-    .execute(pool.as_ref())
+    .execute(&pool)
     .instrument(query_span)
     .await
     {
@@ -46,7 +49,7 @@ pub async fn add_product(form: web::Form<FormData>, pool: web::Data<PgPool>) -> 
                 "request_id {} - New product details have been saved.",
                 request_id
             );
-            HttpResponse::Ok().finish()
+            StatusCode::OK
         }
         Err(e) => {
             tracing::error!(
@@ -54,7 +57,7 @@ pub async fn add_product(form: web::Form<FormData>, pool: web::Data<PgPool>) -> 
                 request_id,
                 e
             );
-            HttpResponse::InternalServerError().finish()
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }

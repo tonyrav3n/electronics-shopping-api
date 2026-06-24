@@ -1,6 +1,5 @@
 use electronics_shopping_api::configuration::get_configuration;
 use sqlx::PgPool;
-use std::net::TcpListener;
 
 pub struct TestApp {
     pub address: String,
@@ -8,7 +7,7 @@ pub struct TestApp {
 }
 
 async fn spawn_app() -> TestApp {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
 
@@ -17,10 +16,11 @@ async fn spawn_app() -> TestApp {
         .await
         .expect("Failed to connect to Postgres.");
 
-    let server = electronics_shopping_api::startup::run(listener, connection_pool.clone())
-        .expect("Failed to bind address");
+    let app = electronics_shopping_api::startup::app(connection_pool.clone());
 
-    tokio::spawn(server);
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("Server crashed");
+    });
 
     TestApp {
         address,

@@ -1,21 +1,12 @@
-use crate::routes::{health_check, add_product};
-use actix_web::dev::Server;
-use tracing_actix_web::TracingLogger;
-use actix_web::{App, HttpServer, web};
+use crate::routes::{add_product, health_check};
+use axum::{routing::{get, post}, Router};
 use sqlx::PgPool;
-use std::net::TcpListener;
+use tower_http::trace::TraceLayer;
 
-pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Error> {
-    let db_pool = web::Data::new(db_pool);
-
-    let server = HttpServer::new(move || {
-        App::new()
-            .wrap(TracingLogger::default())
-            .route("/health_check", web::get().to(health_check))
-            .route("/products", web::post().to(add_product))
-            .app_data(db_pool.clone())
-    })
-    .listen(listener)?
-    .run();
-    Ok(server)
+pub fn app(db_pool: PgPool) -> Router {
+    Router::new()
+        .route("/health_check", get(health_check))
+        .route("/products", post(add_product))
+        .layer(TraceLayer::new_for_http())
+        .with_state(db_pool)
 }

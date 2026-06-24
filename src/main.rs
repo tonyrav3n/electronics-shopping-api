@@ -1,7 +1,6 @@
 use electronics_shopping_api::configuration::get_configuration;
-use electronics_shopping_api::startup::run;
+use electronics_shopping_api::startup::app;
 use sqlx::PgPool;
-use std::net::TcpListener;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[tokio::main]
@@ -14,12 +13,14 @@ async fn main() -> std::io::Result<()> {
 
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set subscriber");
 
-    tracing::info!("Starting the API server...");
     let configuration = get_configuration().expect("Failed to read configuration.");
     let connection_pool = PgPool::connect(&configuration.database.connection_string())
         .await
         .expect("Failed to connect to Postgres");
+
     let address = format!("127.0.0.1:{}", configuration.application_port);
-    let listener = TcpListener::bind(address)?;
-    run(listener, connection_pool)?.await
+    let listener = tokio::net::TcpListener::bind(address).await?;
+    tracing::info!("Started the API server on {}", listener.local_addr()?);
+
+    axum::serve(listener, app(connection_pool)).await
 }
