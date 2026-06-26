@@ -105,13 +105,62 @@ async fn get_product_returns_200_for_existing_product() {
 async fn get_product_returns_404_for_missing_product() {
     let app = helpers::spawn_app().await;
     let client = reqwest::Client::new();
-
     let random_id = uuid::Uuid::new_v4();
+
     let response = client
-        .get(format!("{}/products/{}", &app.address, random_id))
+        .get(format!("{}/product/{}", &app.address, random_id))
         .send()
         .await
-        .expect("Failed to execute GET request.");
+        .expect("Failed to execute request.");
 
     assert_eq!(404, response.status().as_u16());
+}
+
+#[tokio::test]
+async fn add_product_returns_422_when_data_is_missing() {
+    let app = helpers::spawn_app().await;
+    let client = reqwest::Client::new();
+    let test_cases = vec![
+        ("name=TestProduct&brand=TestBrand&price=99.99", "missing stock and description"),
+        ("name=TestProduct&brand=TestBrand&description=TestDesc&stock=10", "missing price"),
+    ];
+
+    for (invalid_body, error_message) in test_cases {
+        let response = client
+            .post(format!("{}/products", &app.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(invalid_body)
+            .send()
+            .await
+            .expect("Failed to execute request.");
+
+        assert_eq!(
+            422,
+            response.status().as_u16(),
+            "The API did not fail with 422 Unprocessable Entity when the payload was {}.",
+            error_message
+        );
+    }
+}
+
+#[tokio::test]
+async fn add_product_returns_400_when_fields_are_present_but_invalid() {
+    let app = helpers::spawn_app().await;
+    let client = reqwest::Client::new();
+    let too_long_name = "A".repeat(101);
+    let invalid_body = format!("name={}&brand=TestBrand&description=TestDesc&price=99.99&stock=10", too_long_name);
+
+    let response = client
+        .post(format!("{}/products", &app.address))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(invalid_body)
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    assert_eq!(
+        400,
+        response.status().as_u16(),
+        "The API did not fail with 400 Bad Request when the product name was too long."
+    );
 }

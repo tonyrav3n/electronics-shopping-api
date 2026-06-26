@@ -2,6 +2,7 @@
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application_port: u16,
+    pub jwt_secret: String,
 }
 #[derive(serde::Deserialize)]
 pub struct DatabaseSettings {

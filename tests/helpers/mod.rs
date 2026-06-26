@@ -1,9 +1,11 @@
 use electronics_shopping_api::configuration::{DatabaseSettings, get_configuration};
+use electronics_shopping_api::startup::{AppState, app};
 use sqlx::{Connection, PgConnection, PgPool};
 use uuid::Uuid;
 
 pub struct TestApp {
     pub address: String,
+    #[allow(dead_code)]
     pub db_pool: PgPool,
 }
 
@@ -15,11 +17,17 @@ pub async fn spawn_app() -> TestApp {
     let address = format!("http://127.0.0.1:{}", port);
 
     let mut configuration = get_configuration().expect("Failed to read configuration");
+
     // Generate a random database name for isolation
     configuration.database.database_name = Uuid::new_v4().to_string();
     let connection_pool = configure_database(&configuration.database).await;
 
-    let app = electronics_shopping_api::startup::app(connection_pool.clone());
+    let state = AppState {
+        db_pool: connection_pool.clone(),
+        jwt_secret: configuration.jwt_secret,
+    };
+
+    let app = app(state);
 
     tokio::spawn(async move {
         axum::serve(listener, app).await.expect("Server crashed");

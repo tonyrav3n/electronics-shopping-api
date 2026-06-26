@@ -5,3 +5,4 @@ database:
   username: "postgres"
   password: "password"
   database_name: "electronics_shopping_api"
+jwt_secret: "electronics_shopping_api_123456"

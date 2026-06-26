@@ -1,5 +1,5 @@
 use electronics_shopping_api::configuration::get_configuration;
-use electronics_shopping_api::startup::app;
+use electronics_shopping_api::startup::{AppState, app};
 use sqlx::PgPool;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -18,9 +18,16 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to connect to Postgres");
 
+    let state = AppState {
+        db_pool: connection_pool,
+        jwt_secret: configuration.jwt_secret,
+    };
+
+    let app = app(state);
+
     let address = format!("127.0.0.1:{}", configuration.application_port);
     let listener = tokio::net::TcpListener::bind(address).await?;
     tracing::info!("Started the API server on {}", listener.local_addr()?);
 
-    axum::serve(listener, app(connection_pool)).await
+    axum::serve(listener, app).await
 }

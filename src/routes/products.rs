@@ -1,10 +1,11 @@
+use crate::startup::AppState;
 use axum::{
     Form, Json,
     extract::{Path, Query, State},
     http::StatusCode,
 };
 use bigdecimal::BigDecimal;
-use sqlx::{PgPool, Postgres, QueryBuilder};
+use sqlx::{Postgres, QueryBuilder};
 use tracing::Instrument;
 use uuid::Uuid;
 use validator::Validate;
@@ -22,7 +23,7 @@ pub struct ProductFormData {
 }
 
 pub async fn add_product(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Form(form): Form<ProductFormData>,
 ) -> StatusCode {
     if form.validate().is_err() {
@@ -52,7 +53,7 @@ pub async fn add_product(
         form.price,
         form.stock
     )
-    .execute(&pool)
+    .execute(&state.db_pool)
     .instrument(query_span)
     .await
     {
@@ -94,7 +95,7 @@ pub struct Product {
 }
 
 pub async fn search_products(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Query(params): Query<SearchParams>,
 ) -> Result<Json<Vec<Product>>, StatusCode> {
     let request_id = Uuid::new_v4();
@@ -136,7 +137,7 @@ pub async fn search_products(
 
     match query
         .build_query_as::<Product>()
-        .fetch_all(&pool)
+        .fetch_all(&state.db_pool)
         .instrument(query_span)
         .await
     {
@@ -159,46 +160,8 @@ pub async fn search_products(
     }
 }
 
-pub async fn list_products(State(pool): State<PgPool>) -> Result<Json<Vec<Product>>, StatusCode> {
-    let request_id = Uuid::new_v4();
-    let request_span = tracing::info_span!(
-        "Full product catalog requested",
-        %request_id,
-    );
-    let _request_span_guard = request_span.enter();
-
-    let query_span = tracing::info_span!(
-        "Querying products table",
-        sql = "SELECT id, name, brand, description, price, stock, created_at FROM products"
-    );
-
-    match sqlx::query_as!(
-        Product,
-        r#"
-        SELECT id, name, brand, description, price, stock, created_at FROM products
-        "#,
-    )
-    .fetch_all(&pool)
-    .instrument(query_span)
-    .await
-    {
-        Ok(products) => {
-            tracing::info!("request_id {} - All products listed.", request_id);
-            Ok(Json(products))
-        }
-        Err(e) => {
-            tracing::error!(
-                "request_id {} - Failed to execute query: {:?}",
-                request_id,
-                e
-            );
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
 pub async fn get_product(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, StatusCode> {
     let request_id = Uuid::new_v4();
@@ -221,7 +184,7 @@ pub async fn get_product(
         "#,
         product_id
     )
-    .fetch_one(&pool)
+    .fetch_one(&state.db_pool)
     .instrument(query_span)
     .await
     {
