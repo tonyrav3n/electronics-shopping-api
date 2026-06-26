@@ -5,9 +5,9 @@
     "columns": [],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text",
+        "Varchar",
+        "Varchar",
+        "Varchar",
         "Numeric",
         "Int4"
       ]
